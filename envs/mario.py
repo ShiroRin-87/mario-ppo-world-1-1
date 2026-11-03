@@ -89,4 +89,3 @@ class MarioEnv(gym.Env):
 
     def close(self):
         self._env.close()
-

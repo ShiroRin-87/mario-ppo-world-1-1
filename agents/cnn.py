@@ -21,4 +21,3 @@ class MarioCNN(BaseFeaturesExtractor):
 
     def forward(self, observations):
         return self.project(self.conv(observations))
-

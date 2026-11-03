@@ -42,4 +42,3 @@ class MarioEnvironmentTests(unittest.TestCase):
         self.env.reset(seed=42)
         self.env.render().fill(0)
         self.assertTrue(self.env.render().any())
-

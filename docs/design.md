@@ -35,4 +35,3 @@ PPO 在采样一批轨迹后复用轨迹进行多轮更新，并通过裁剪策�
 DQN 可利用离散动作和经验回放，图像堆叠下需要额外考虑回放容量和显存或内存占用。手写启发式策略可用来定位环境异常，项目主基线采用均匀随机动作，便于说明学习前后的差异。若比较不同奖励配置，评测使用同一套计分规则。
 
 `gym-super-mario-bros` 7.4 和 `nes-py` 8.2 提供 Python 3.11 可用的旧 Gym 后端。项目把 API 转换放在环境层，对训练与评测暴露 Gymnasium 接口。适配设计参考 [mario-ai-trainer](https://github.com/mgelsinger/mario-ai-trainer)，依赖及版本在安装后以实际输出核对。
-
