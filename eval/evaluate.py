@@ -111,7 +111,10 @@ def main():
         commit = subprocess.run(
             ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True,
             capture_output=True, check=False,
-        ).stdout.strip()
+        ).stdout.strip() if shutil.which("git") else None
+        snapshot = ROOT / "SOURCE_COMMIT"
+        if snapshot.is_file():
+            commit = snapshot.read_text(encoding="utf-8").strip()
         rewards = [episode["reward"] for episode in results]
         total_steps = sum(episode["steps"] for episode in results)
         result = {
