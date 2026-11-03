@@ -52,6 +52,8 @@ def save_model(model, path):
 
 
 def git_value(*args):
+    if shutil.which("git") is None:
+        return ""
     return subprocess.run(
         ["git", *args], cwd=ROOT, text=True, capture_output=True, check=False
     ).stdout.strip()
@@ -84,11 +86,13 @@ def main():
     folder.mkdir(parents=True, exist_ok=False)
     (folder / "checkpoints").mkdir()
     shutil.copyfile(args.config, folder / "config.yaml")
+    snapshot = ROOT / "SOURCE_COMMIT"
+    revision = snapshot.read_text(encoding="utf-8").strip() if snapshot.is_file() else git_value("rev-parse", "HEAD")
     metadata = {
         "exp_id": exp_id,
         "seed": config["seed"],
-        "git_commit": git_value("rev-parse", "HEAD") or None,
-        "git_dirty": bool(git_value("status", "--porcelain")),
+        "git_commit": revision or None,
+        "git_dirty": None if snapshot.is_file() else bool(git_value("status", "--porcelain")),
         "config": "config.yaml",
         "resume": str(args.resume) if args.resume else None,
     }
