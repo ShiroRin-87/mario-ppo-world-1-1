@@ -1,16 +1,16 @@
 # 训练与回放操作
 
-首次使用先按 README 安装。新训练的模型保存在 `models/current/best_model.zip`，每轮的 `logs/<exp_id>` 包含配置、实验登记、模型存档、训练日志和 TensorBoard 数据。
+首次使用先按 README 安装。新训练的模型保存在 `models/current/best_model.zip`，每轮的 `logs/<exp_id>` 包含配置、实验登记、训练日志和 TensorBoard 数据。各轮权重存放于 `models/archive/<exp_id>/`。
 
 ## 续训
 
 用要恢复的 checkpoint 和配置启动。配置中的步数是此次新增步数，实验登记会保留起始步数。
 
 ```powershell
-scripts\start_train.bat --config configs\baseline.yaml --resume logs\<exp_id>\checkpoints\ppo_100000.zip
+scripts\start_train.bat --config configs\baseline.yaml --resume models\archive\<exp_id>\checkpoints\ppo_100000.zip
 ```
 
-`--no-publish` 将实验模型留在该轮日志目录。快速检查时使用此参数，可继续用当前交付模型进行评测。
+`--no-publish` 将实验模型留在该轮模型归档目录。快速检查时使用此参数，可继续用当前交付模型进行评测。
 
 ## 对比与录像
 

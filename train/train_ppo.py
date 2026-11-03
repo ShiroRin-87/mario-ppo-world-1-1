@@ -84,7 +84,8 @@ def main():
 
     folder = ROOT / "logs" / exp_id
     folder.mkdir(parents=True, exist_ok=False)
-    (folder / "checkpoints").mkdir()
+    model_folder = ROOT / "models" / "archive" / exp_id
+    (model_folder / "checkpoints").mkdir(parents=True, exist_ok=False)
     shutil.copyfile(args.config, folder / "config.yaml")
     snapshot = ROOT / "SOURCE_COMMIT"
     revision = snapshot.read_text(encoding="utf-8").strip() if snapshot.is_file() else git_value("rev-parse", "HEAD")
@@ -142,10 +143,10 @@ def main():
             total_timesteps=config["total_timesteps"],
             reset_num_timesteps=not args.resume,
             callback=[
-                Checkpoints(folder / "checkpoints", config["checkpoint_steps"]),
+                Checkpoints(model_folder / "checkpoints", config["checkpoint_steps"]),
                 EvalCallback(
                     eval_env,
-                    best_model_save_path=str(folder),
+                    best_model_save_path=str(model_folder),
                     log_path=str(folder),
                     eval_freq=math.ceil(config["eval_steps"] / n_envs),
                     n_eval_episodes=config["eval_episodes"],
@@ -153,15 +154,15 @@ def main():
                 ),
             ],
         )
-        save_model(model, folder / "final_model.zip")
-        best = folder / "best_model.zip"
+        save_model(model, model_folder / "final_model.zip")
+        best = model_folder / "best_model.zip"
         if not best.is_file():
-            shutil.copyfile(folder / "final_model.zip", best)
+            shutil.copyfile(model_folder / "final_model.zip", best)
         metadata.update(
             initial_steps=initial_steps,
             total_timesteps=model.num_timesteps,
             elapsed_seconds=round(time.perf_counter() - started, 3),
-            model="best_model.zip",
+            model=best.relative_to(ROOT).as_posix(),
         )
         manifest.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
         if not args.no_publish:

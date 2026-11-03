@@ -9,12 +9,12 @@
 
 ## 1 能跑的命令
 
-在项目根目录执行。使用环境依赖锁和训练依赖锁安装 Python 3.11 的 CPU 环境。将该实验的模型放入 `models/current/best_model.zip`。
+在项目根目录执行。使用环境依赖锁和训练依赖锁安装 Python 3.11 的 CPU 环境。交接时权重在日志目录，当前代码已将权重统一放到 `models/archive/<exp_id>/`。将该实验的模型放入 `models/current/best_model.zip`。
 
 ```powershell
 python -m unittest discover -s tests -v
 python train/train_ppo.py --config configs/smoke.yaml --exp-id exp_20261103_cpu_smoke_01 --no-publish
-python train/train_ppo.py --config configs/smoke.yaml --exp-id exp_20261103_cpu_resume_01 --resume logs/exp_20261103_cpu_smoke_01/checkpoints/ppo_512.zip --no-publish
+python train/train_ppo.py --config configs/smoke.yaml --exp-id exp_20261103_cpu_resume_01 --resume models/archive/exp_20261103_cpu_smoke_01/checkpoints/ppo_512.zip --no-publish
 python train/train_ppo.py --config configs/delivery.yaml --exp-id exp_20261103_delivery_01 --no-publish
 ```
 
