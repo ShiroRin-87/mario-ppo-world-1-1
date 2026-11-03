@@ -39,4 +39,4 @@ python eval/evaluate.py --model models/current/best_model.zip --episodes 10
 - [独立测试清单](docs/test-plan.md)
 - [演示分镜](docs/demo-script.md)
 
-在 [Releases](https://github.com/ShiroRin-87/mario-ppo-world-1-1/releases) 查看演示成片、PPO 原始对局、随机对照和实测训练曲线。完整项目 ZIP 含模型、训练日志与验收证据。
+在 [Releases](https://github.com/ShiroRin-87/mario-ppo-world-1-1/releases) 下载完整项目 ZIP、演示成片、PPO 原始对局、随机对照和实测训练曲线。ZIP 含模型、训练日志与验收证据。
