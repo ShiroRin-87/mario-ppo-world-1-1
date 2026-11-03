@@ -75,6 +75,12 @@ def collect_demonstration(ppo_path, ranker_path):
     return np.stack(features), np.array(actions, dtype=np.int8), result
 
 
+def select_route_action(env, features, actions):
+    difference = features - env.features()
+    distances = np.einsum("ij,ij->i", difference, difference)
+    return int(actions[distances.argmin()])
+
+
 def run_route(features, actions, prefix=(), write_frame=None):
     started = perf_counter()
     with RouteEnv() as env:
@@ -92,9 +98,7 @@ def run_route(features, actions, prefix=(), write_frame=None):
         max_x = start_x
         steps = 0
         while True:
-            difference = features - env.features()
-            distances = np.einsum("ij,ij->i", difference, difference)
-            action = int(actions[distances.argmin()])
+            action = select_route_action(env, features, actions)
             _, value, terminated, truncated, info = env.step(action)
             reward += value
             steps += 1
