@@ -4,6 +4,8 @@ import argparse
 import hashlib
 import json
 import sys
+from contextlib import closing
+from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
 
@@ -57,8 +59,15 @@ class Checkpoint:
             raise RuntimeError("NES RAM does not match the saved checkpoint")
 
 
-def run_case(features, actions, overrides, recover, write_frame=None):
-    """Apply real emulator inputs at the listed decision steps, then optionally restore."""
+@dataclass(frozen=True)
+class CaseFrame:
+    pixels: np.ndarray
+    x: int
+    phase: str
+
+
+def iter_case(features, actions, overrides, recover, capture=True, initial_frame=False):
+    """Yield rendered frames and return the full evaluation record."""
 
     started = perf_counter()
     events = []
@@ -67,6 +76,8 @@ def run_case(features, actions, overrides, recover, write_frame=None):
     trajectory = hashlib.sha256()
     with RouteEnv() as env:
         env.reset(seed=0)
+        if capture and initial_frame:
+            yield CaseFrame(env.render(), env.x, "ready")
         while True:
             action = select_route_action(env, features, actions)
             pulse = overrides.get(decision)
@@ -78,8 +89,8 @@ def run_case(features, actions, overrides, recover, write_frame=None):
                 for override in pulse:
                     _, _, terminated, truncated, info = env.step(override)
                     applied += 1
-                    if write_frame is not None:
-                        write_frame(env.render())
+                    if capture:
+                        yield CaseFrame(env.render(), env.x, "override")
                     if terminated or truncated:
                         break
                 event = {
@@ -94,8 +105,8 @@ def run_case(features, actions, overrides, recover, write_frame=None):
                     event["restored_x"] = env.x
                     event["restore_seconds"] = perf_counter() - restore_started
                     event["fault_handling_seconds"] = perf_counter() - event_started
-                    if write_frame is not None:
-                        write_frame(env.render())
+                    if capture:
+                        yield CaseFrame(env.render(), env.x, "restored")
                 elif terminated or truncated:
                     events.append(event)
                     max_x = max(max_x, int(info["x_pos"]))
@@ -107,8 +118,11 @@ def run_case(features, actions, overrides, recover, write_frame=None):
             decision += 1
             trajectory.update(env._env.unwrapped.ram.tobytes())
             max_x = max(max_x, int(info["x_pos"]))
-            if write_frame is not None:
-                write_frame(env.render())
+            if capture:
+                phase = "playing"
+                if terminated or truncated:
+                    phase = "clear" if info["flag_get"] else "failed"
+                yield CaseFrame(env.render(), int(info["x_pos"]), phase)
             if terminated or truncated:
                 break
     return {
@@ -116,6 +130,19 @@ def run_case(features, actions, overrides, recover, write_frame=None):
         "policy_decisions": decision, "elapsed_seconds": perf_counter() - started,
         "trajectory_sha256": trajectory.hexdigest(), "override_events": events,
     }
+
+
+def run_case(features, actions, overrides, recover, write_frame=None):
+    """Evaluate a case and optionally send its RGB frames to a recorder."""
+
+    frames = iter_case(features, actions, overrides, recover, capture=write_frame is not None)
+    with closing(frames):
+        while True:
+            try:
+                frame = next(frames)
+            except StopIteration as finished:
+                return finished.value
+            write_frame(frame.pixels)
 
 
 def main():
