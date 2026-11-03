@@ -89,9 +89,11 @@ def run_case(features, actions, overrides, recover, write_frame=None):
                     "ended_during_override": bool(terminated or truncated),
                 }
                 if checkpoint is not None:
+                    restore_started = perf_counter()
                     checkpoint.restore()
                     event["restored_x"] = env.x
-                    event["restore_seconds"] = perf_counter() - event_started
+                    event["restore_seconds"] = perf_counter() - restore_started
+                    event["fault_handling_seconds"] = perf_counter() - event_started
                     if write_frame is not None:
                         write_frame(env.render())
                 elif terminated or truncated:
@@ -133,7 +135,7 @@ def main():
     }
     for name, cases in (
         ("opening", OPENING_CASES), ("midcourse", MIDCOURSE_CASES),
-        ("held_out", HELD_OUT_CASES),
+        ("held_out", HELD_OUT_CASES), ("terminal", ({0: (3,) * 120},)),
     ):
         rows = []
         for overrides in cases:
@@ -143,6 +145,8 @@ def main():
                 raise RuntimeError("A scheduled override was not applied")
             if after["trajectory_sha256"] != baseline["trajectory_sha256"]:
                 raise RuntimeError("The restored run diverged from the standard run")
+            if name == "terminal" and not after["override_events"][0]["ended_during_override"]:
+                raise RuntimeError("The terminal stress input did not end the episode")
             rows.append({"overrides": overrides, "without_recovery": before, "checkpoint_recovery": after})
             print(name, overrides, before["clear"], after["clear"], flush=True)
         report["groups"][name] = rows
