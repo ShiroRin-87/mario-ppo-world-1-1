@@ -3,10 +3,8 @@
 import argparse
 import json
 import math
-import os
 import re
 import shutil
-import subprocess
 import sys
 import time
 from datetime import datetime
@@ -22,11 +20,17 @@ import yaml
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback, EvalCallback
 from stable_baselines3.common.env_util import make_vec_env
-from stable_baselines3.common.logger import CSVOutputFormat, HumanOutputFormat, Logger, TensorBoardOutputFormat
+from stable_baselines3.common.logger import (
+    CSVOutputFormat,
+    HumanOutputFormat,
+    Logger,
+    TensorBoardOutputFormat,
+)
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
 
 from agents.cnn import MarioCNN
 from envs.mario import MarioEnv
+from scripts.revision import git_output, source_revision
 
 
 class Checkpoints(BaseCallback):
@@ -47,16 +51,21 @@ class Checkpoints(BaseCallback):
 
 def save_model(model, path):
     temporary = path.with_suffix(".tmp.zip")
-    model.save(temporary)
-    temporary.replace(path)
+    try:
+        model.save(temporary)
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
-def git_value(*args):
-    if shutil.which("git") is None:
-        return ""
-    return subprocess.run(
-        ["git", *args], cwd=ROOT, text=True, capture_output=True, check=False
-    ).stdout.strip()
+def publish_model(best, destination):
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    pending = destination.with_name(f".best_model.{uuid4().hex}.tmp.zip")
+    try:
+        shutil.copyfile(best, pending)
+        pending.replace(destination)
+    finally:
+        pending.unlink(missing_ok=True)
 
 
 def main():
@@ -87,13 +96,13 @@ def main():
     model_folder = ROOT / "models" / "archive" / exp_id
     (model_folder / "checkpoints").mkdir(parents=True, exist_ok=False)
     shutil.copyfile(args.config, folder / "config.yaml")
-    snapshot = ROOT / "SOURCE_COMMIT"
-    revision = snapshot.read_text(encoding="utf-8").strip() if snapshot.is_file() else git_value("rev-parse", "HEAD")
+    revision = source_revision(ROOT)
+    status = None if (ROOT / "SOURCE_COMMIT").is_file() else git_output(ROOT, "status", "--porcelain")
     metadata = {
         "exp_id": exp_id,
         "seed": config["seed"],
-        "git_commit": revision or None,
-        "git_dirty": None if snapshot.is_file() else bool(git_value("status", "--porcelain")),
+        "git_commit": revision,
+        "git_dirty": bool(status) if status is not None else None,
         "config": "config.yaml",
         "resume": str(args.resume) if args.resume else None,
     }
@@ -166,11 +175,7 @@ def main():
         )
         manifest.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
         if not args.no_publish:
-            destination = ROOT / "models" / "current"
-            destination.mkdir(parents=True, exist_ok=True)
-            pending = destination / f".best_model.{uuid4().hex}.tmp.zip"
-            shutil.copyfile(best, pending)
-            os.replace(pending, destination / "best_model.zip")
+            publish_model(best, ROOT / "models" / "current" / "best_model.zip")
         logger.log(json.dumps(metadata, ensure_ascii=False))
     finally:
         train_env.close()

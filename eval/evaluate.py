@@ -8,6 +8,7 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
+from uuid import uuid4
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -17,6 +18,7 @@ import psutil
 import yaml
 
 from envs.mario import MarioEnv
+from scripts.revision import source_revision
 
 
 def run_episode(env, policy, seed, write_frame=None, stochastic=False):
@@ -30,9 +32,11 @@ def run_episode(env, policy, seed, write_frame=None, stochastic=False):
     max_x = 0
     steps = 0
     while True:
-        action = int(rng.integers(env.action_space.n)) if policy is None else int(
-            policy.predict(obs, deterministic=not stochastic)[0].item()
-        )
+        if policy is None:
+            action = int(rng.integers(env.action_space.n))
+        else:
+            prediction, _ = policy.predict(obs, deterministic=not stochastic)
+            action = int(prediction.item())
         obs, value, terminated, truncated, info = env.step(action)
         max_x = max(max_x, int(info["x_pos"]))
         reward += value
@@ -55,18 +59,22 @@ def record_episode(env, policy, seed, target, stochastic=False):
     if ffmpeg is None:
         raise RuntimeError("FFmpeg is required for --video")
     target.parent.mkdir(parents=True, exist_ok=True)
-    pending = target.with_suffix(".tmp.mp4")
-    with subprocess.Popen([
+    pending = target.with_name(f".{target.stem}.{uuid4().hex}.tmp.mp4")
+    command = [
         ffmpeg, "-hide_banner", "-loglevel", "error", "-y",
         "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", "256x240",
         "-r", str(env.metadata["render_fps"] / env.frame_skip), "-i", "-",
         "-c:v", "libx264", "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(pending),
-    ], stdin=subprocess.PIPE) as process:
-        run_episode(env, policy, seed, process.stdin.write, stochastic=stochastic)
-        process.stdin.close()
-        if process.wait() != 0:
-            raise RuntimeError("FFmpeg could not encode the replay")
-    pending.replace(target)
+    ]
+    try:
+        with subprocess.Popen(command, stdin=subprocess.PIPE) as process:
+            run_episode(env, policy, seed, process.stdin.write, stochastic=stochastic)
+            process.stdin.close()
+            if process.wait() != 0:
+                raise RuntimeError("FFmpeg could not encode the replay")
+        pending.replace(target)
+    finally:
+        pending.unlink(missing_ok=True)
 
 
 def main():
@@ -108,19 +116,13 @@ def main():
             memory = process.memory_info()
             max_rss = max(max_rss, getattr(memory, "peak_wset", memory.rss))
         elapsed = time.perf_counter() - started
-        commit = subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True,
-            capture_output=True, check=False,
-        ).stdout.strip() if shutil.which("git") else None
-        snapshot = ROOT / "SOURCE_COMMIT"
-        if snapshot.is_file():
-            commit = snapshot.read_text(encoding="utf-8").strip()
+
         rewards = [episode["reward"] for episode in results]
         total_steps = sum(episode["steps"] for episode in results)
         result = {
             "exp_id": exp_id,
             "seed": seed,
-            "git_commit": commit or None,
+            "git_commit": source_revision(ROOT),
             "episodes": args.episodes,
             "mean_reward": float(np.mean(rewards)),
             "std_reward": float(np.std(rewards)),
