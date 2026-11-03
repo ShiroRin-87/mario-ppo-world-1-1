@@ -161,7 +161,7 @@ def episode(env_type, policy, seed, mode, model=None):
                 vx = 0 if prev_x is None else info["x_pos"] - prev_x
                 steps += 1
                 total_reward += reward
-                max_x = max(max_x, info["x_pos"])
+                max_x = max(max_x, int(info["x_pos"]))
                 if terminated or truncated:
                     break
         finally:
