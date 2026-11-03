@@ -24,15 +24,22 @@ SIZE = (1920, 1080)
 FPS = 15
 CASES = (
     ("标准开局", {}),
+    ("开局跳跃", OPENING_CASES[2]),
+    ("中途反向", MIDCOURSE_CASES[3]),
+    ("死亡后恢复", {0: (3,) * 120}),
     ("开局向右", OPENING_CASES[0]),
     ("开局冲刺", OPENING_CASES[1]),
-    ("开局跳跃", OPENING_CASES[2]),
     ("开局反向", OPENING_CASES[3]),
     ("中途松手", MIDCOURSE_CASES[0]),
-    ("中途反向", MIDCOURSE_CASES[3]),
     ("中途跳跃", MIDCOURSE_CASES[5]),
     ("多次覆盖", HELD_OUT_CASES[-2]),
-    ("死亡后恢复", {0: (3,) * 120}),
+)
+PANELS = (
+    (0, 0, 576, 540), (576, 0, 576, 540),
+    (0, 540, 576, 540), (576, 540, 576, 540),
+    (1152, 0, 384, 360), (1536, 0, 384, 360),
+    (1152, 360, 384, 360), (1536, 360, 384, 360),
+    (1152, 720, 384, 360), (1536, 720, 384, 360),
 )
 PHASES = {
     "ready": ("待开始", "#a9b8ce"),
@@ -75,37 +82,37 @@ class Lane:
 class Grid:
     def __init__(self, lanes, font_path):
         self.lanes = lanes
-        self.small = ImageFont.truetype(str(font_path), 22)
-        self.title = ImageFont.truetype(str(font_path), 29)
-        self.counter = ImageFont.truetype(str(font_path), 43)
-        self.background = Image.new("RGB", SIZE, "#0d1627")
-        draw = ImageDraw.Draw(self.background)
-        draw.text((59, 24), "超级马里奥  World 1-1", font=ImageFont.truetype(str(font_path), 48), fill="#f2f7ff")
-        draw.text((61, 88), "10 个独立实例   ·   同一实时策略   ·   开局与中途按键扰动", font=self.small, fill="#a9bbd3")
-        draw.text((60, 1024), "橙色  注入扰动     青色  恢复检查点     绿色  到达旗杆", font=self.small, fill="#b5c7de")
-        draw.text((1858, 1024), "原速 15 决策步 / 秒", anchor="ra", font=self.small, fill="#b5c7de")
-        self.origins = [(60 + 364 * (i % 5), 145 + 423 * (i // 5)) for i in range(len(lanes))]
-        for (x, y), lane in zip(self.origins, lanes):
-            draw.rounded_rectangle((x - 2, y - 2, x + 346, y + 402), radius=12, fill="#1c2b42")
-            draw.text((x + 12, y + 5), lane.title, font=self.title, fill="#f2f7ff")
+        self.small = ImageFont.truetype(str(font_path), 18)
+        self.large = ImageFont.truetype(str(font_path), 23)
 
     @property
     def finished(self):
         return all(lane.result is not None for lane in self.lanes)
 
     def render(self, tick):
-        image = self.background.copy()
+        image = Image.new("RGB", SIZE)
         draw = ImageDraw.Draw(image)
-        for (x, y), lane in zip(self.origins, self.lanes):
+        for (x, y, width, height), lane in zip(PANELS, self.lanes):
             lane.advance(tick)
             game = Image.fromarray(lane.frame.pixels)
-            image.paste(game.resize((344, 322), Image.Resampling.NEAREST), (x, y + 47))
+            image.paste(game.resize((width, height), Image.Resampling.NEAREST), (x, y))
             state, color = PHASES[lane.phase(tick)]
-            draw.ellipse((x + 14, y + 380, x + 24, y + 390), fill=color)
-            draw.text((x + 34, y + 371), state, font=self.small, fill=color)
-            draw.text((x + 331, y + 371), f"x = {lane.frame.x}", anchor="ra", font=self.small, fill="#e3ecfa")
+            big = width == 576
+            font = self.large if big else self.small
+            bar = y + height - (36 if big else 28)
+            draw.rectangle((x, bar, x + width - 1, y + height - 1), fill="#101a2b")
+            draw.text((x + 10, bar + 3), lane.title, font=font, fill="#eff5ff")
+            draw.text((x + (228 if big else 146), bar + 3), state, font=font, fill=color)
+            draw.text((x + width - 10, bar + 3), f"x={lane.frame.x}", anchor="ra", font=font, fill="#eff5ff")
+        for x in (576, 1152, 1536):
+            draw.line((x, 0, x, 1079), fill="#101a2b", width=2)
+        draw.line((0, 540, 1151, 540), fill="#101a2b", width=2)
+        for y in (360, 720):
+            draw.line((1152, y, 1919, y), fill="#101a2b", width=2)
         cleared = sum(lane.phase(tick) == "clear" for lane in self.lanes)
-        draw.text((1858, 37), f"已通关  {cleared:02d} / 10", anchor="ra", font=self.counter, fill="#a9e9b9")
+        draw.rectangle((0, 0, 574, 32), fill="#101a2b")
+        draw.text((10, 2), "World 1-1  ·  十路同屏", font=self.large, fill="#eff5ff")
+        draw.text((565, 2), f"已通关 {cleared:02d}/10", anchor="ra", font=self.large, fill="#a9e9b9")
         return image
 
 
@@ -155,6 +162,7 @@ def preview(grid):
     display = tk.Label(root, bg="#0d1627", borderwidth=0)
     display.pack(fill="both", expand=True)
     root.bind("<Escape>", lambda _event: root.destroy())
+    root.bind("<F11>", lambda _event: root.attributes("-fullscreen", not root.attributes("-fullscreen")))
     tick = 0
 
     def update():
@@ -202,7 +210,7 @@ def main():
         frames = record(grid, args.output)
         report = {
             "source_commit": source_revision(ROOT),
-            "grid": [5, 2], "resolution": list(SIZE), "fps": FPS,
+            "layout": "four-large-six-small", "panels": PANELS, "resolution": list(SIZE), "fps": FPS,
             "frames": frames, "duration_seconds": frames / FPS,
             "render_seconds": perf_counter() - started,
             "instances": [{"title": lane.title, "start_delay_frames": lane.delay, **lane.result} for lane in lanes],
