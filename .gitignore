@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+.pytest_cache/
+*.py[cod]
+.env
+.env.*
+*.nes
+*.rom
+*.zip
+*.pt
+*.pth
+*.mp4
+models/
+logs/
+data/
+dist/
