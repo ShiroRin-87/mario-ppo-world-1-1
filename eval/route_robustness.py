@@ -64,6 +64,7 @@ class CaseFrame:
     pixels: np.ndarray
     x: int
     phase: str
+    action: int | None = None
 
 
 def iter_case(features, actions, overrides, recover, capture=True, initial_frame=False):
@@ -90,7 +91,7 @@ def iter_case(features, actions, overrides, recover, capture=True, initial_frame
                     _, _, terminated, truncated, info = env.step(override)
                     applied += 1
                     if capture:
-                        yield CaseFrame(env.render(), env.x, "override")
+                        yield CaseFrame(env.render(), env.x, "override", override)
                     if terminated or truncated:
                         break
                 event = {
@@ -122,7 +123,7 @@ def iter_case(features, actions, overrides, recover, capture=True, initial_frame
                 phase = "playing"
                 if terminated or truncated:
                     phase = "clear" if info["flag_get"] else "failed"
-                yield CaseFrame(env.render(), int(info["x_pos"]), phase)
+                yield CaseFrame(env.render(), int(info["x_pos"]), phase, action)
             if terminated or truncated:
                 break
     return {

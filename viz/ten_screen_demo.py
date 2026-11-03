@@ -12,6 +12,7 @@ from time import perf_counter
 from uuid import uuid4
 
 import numpy as np
+from gym_super_mario_bros.actions import SIMPLE_MOVEMENT
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -45,10 +46,15 @@ PHASES = {
     "ready": ("待开始", "#a9b8ce"),
     "playing": ("运行中", "#7cbdf6"),
     "override": ("注入扰动", "#ffd17b"),
-    "restored": ("检查点已恢复", "#7fe1d3"),
+    "restored": ("已恢复", "#7fe1d3"),
     "clear": ("到达旗杆", "#9ce5ad"),
     "failed": ("本局结束", "#f59b9b"),
 }
+BUTTON_NAMES = {"NOOP": "松开", "right": "→", "left": "←"}
+ACTION_LABELS = tuple(
+    "+".join(BUTTON_NAMES.get(button, button) for button in buttons)
+    for buttons in SIMPLE_MOVEMENT
+)
 
 
 @dataclass
@@ -102,7 +108,11 @@ class Grid:
             bar = y + height - (36 if big else 28)
             draw.rectangle((x, bar, x + width - 1, y + height - 1), fill="#101a2b")
             draw.text((x + 10, bar + 3), lane.title, font=font, fill="#eff5ff")
-            draw.text((x + (228 if big else 146), bar + 3), state, font=font, fill=color)
+            draw.text((x + (228 if big else 136), bar + 3), state, font=font, fill=color)
+            action = lane.frame.action if lane.result is None else None
+            buttons = "—" if action is None else ACTION_LABELS[action]
+            action_color = PHASES["override"][1] if lane.frame.phase == "override" else "#eff5ff"
+            draw.text((x + (360 if big else 212), bar + 3), f"键 {buttons}", font=font, fill=action_color)
             draw.text((x + width - 10, bar + 3), f"x={lane.frame.x}", anchor="ra", font=font, fill="#eff5ff")
         for x in (576, 1152, 1536):
             draw.line((x, 0, x, 1079), fill="#101a2b", width=2)
