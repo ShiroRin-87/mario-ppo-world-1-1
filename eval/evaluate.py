@@ -1,4 +1,4 @@
-"""Evaluate a Mario PPO policy or a seeded uniform random baseline."""
+"""Evaluate a Mario PPO or Double DQN policy, or a seeded random baseline."""
 
 import argparse
 import json
@@ -81,6 +81,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument("--model", type=Path)
+    source.add_argument("--ddqn", type=Path, help="MarioPlayingAgent Double DQN checkpoint")
     source.add_argument("--random", action="store_true")
     parser.add_argument("--episodes", type=int, default=10)
     parser.add_argument("--seed", type=int)
@@ -90,25 +91,38 @@ def main():
     parser.add_argument("--video", type=Path)
     parser.add_argument("--stochastic", action="store_true")
     args = parser.parse_args()
-    label = "random" if args.random else args.model.stem
+    model_path = args.model or args.ddqn
+    label = model_path.stem if model_path else "random"
     exp_id = args.exp_id or datetime.now().strftime(f"exp_%Y%m%d_{label}_%H%M%S")
     if args.episodes < 1:
         parser.error("--episodes must be positive")
-    if args.model and not args.model.is_file():
-        parser.error(f"Model does not exist: {args.model}")
+    if model_path and not model_path.is_file():
+        parser.error(f"Model does not exist: {model_path}")
+    if args.ddqn and args.stochastic:
+        parser.error("--ddqn uses greedy actions")
     config = yaml.safe_load(args.config.read_text(encoding="utf-8-sig"))
     seed = args.seed if args.seed is not None else config["seed"]
     policy = None
-    if args.model:
+    if model_path:
         import torch
-        from stable_baselines3 import PPO
 
         torch.set_num_threads(config["torch_threads"])
+    if args.model:
+        from stable_baselines3 import PPO
+
         policy = PPO.load(args.model, device="cpu")
-    env = MarioEnv(max_steps=config["env"]["max_steps"])
+    if args.ddqn:
+        from agents.ddqn import MarioDDQN
+        from envs.ddqn import DDQNMarioEnv
+
+        env = DDQNMarioEnv(max_steps=config["env"]["max_steps"])
+    else:
+        env = MarioEnv(max_steps=config["env"]["max_steps"])
     process = psutil.Process()
     max_rss = 0
     try:
+        if args.ddqn:
+            policy = MarioDDQN.load(args.ddqn, env.action_space.n)
         started = time.perf_counter()
         results = []
         for index in range(args.episodes):
@@ -129,7 +143,7 @@ def main():
             "max_x_pos": max(episode["max_x_pos"] for episode in results),
             "clear_rate": sum(episode["cleared"] for episode in results) / args.episodes,
             "fps": total_steps / elapsed,
-            "model_path": str(args.model) if args.model else None,
+            "model_path": str(model_path) if model_path else None,
         }
         output = json.dumps(result, indent=2)
         path = args.output or ROOT / "logs" / exp_id / "evaluation.json"

@@ -31,6 +31,8 @@ python eval/evaluate.py --model models/current/best_model.zip --episodes 10
 
 默认模型评测取贪心动作。用 `--stochastic` 复现报告中的按概率采样策略。随机基线用 `--random`。录屏用 `--video data/play.mp4`。
 
+可以用 `--ddqn` 导入 MarioPlayingAgent 的 Double DQN 权重，通过同一入口评测和录屏。[Double DQN 使用说明](docs/ddqn.md)
+
 - [环境与故障处理](docs/environment.md)
 - [需求、架构与选型](docs/design.md)
 - [训练续训和回放](docs/user-guide.md)
